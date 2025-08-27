@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modifying Private Variables of a Struct in Go Using unsafe and reflect</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Highlight.js stylesheet (Atom One Dark theme) -->
+    <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+
+    <!-- Atom One Light -->
+  <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css" disabled>
+
+    <!-- Highlight.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Enable auto-detection -->
+    <script>hljs.highlightAll();</script>
+
+    <link href="/assets/css/styles.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">Darshan N A</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/index.html">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/projects/index.html">Projects</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/blogs/index.html">Blogs</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/rss.xml">RSS</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link theme-toggle" id="theme-toggle" href="#" title="Toggle theme">🔆</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-5">
+        <div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1>Modifying Private Variables of a Struct in Go Using unsafe and reflect</h1>
+        <p>In Go, struct fields can be private (unexported) or public (exported). Unexported fields begin with a lowercase letter and are meant to be inaccessible outside the package they are defined in. However, by using the <code>reflect</code> and <code>unsafe</code> packages, you can bypass these restrictions. While this approach can be useful for testing or debugging, it should be used sparingly and responsibly as it breaks encapsulation and can lead to unpredictable behavior.</p>
+<p>In this blog, we’ll explore how to modify private variables of a struct using <code>unsafe</code> and <code>reflect</code>. We’ll also dive into the internals of how these packages work and provide clear examples, including memory layout details and the use of <code>unsafe.NewAt</code>.</p>
+<h1>1. Understanding Struct Memory Layout</h1>
+<p>In Go, a struct is a contiguous block of memory where its fields are laid out sequentially. Each field has a memory offset from the start of the struct. Exported and unexported fields are treated the same in memory — the difference is purely at the language level enforced by the compiler.</p>
+<h2>Example Struct</h2>
+<pre><code class="language-go">    package main
+
+    type Example struct {
+        PublicField  string
+        privateField int // unexported field
+}
+</code></pre>
+<p>The memory layout of <code>Example</code> would look something like this:</p>
+<pre><code class="language-go">    | PublicField  (string) |
+    | privateField (int)    |
+</code></pre>
+<p>Even though <code>privateField</code> is unexported, its data is still present in memory.</p>
+<h2>Memory Layout with Addresses</h2>
+<p>To better understand how structs are stored in memory, consider the following:</p>
+<pre><code class="language-go">    package main
+
+    import (
+        &quot;fmt&quot;
+        &quot;unsafe&quot;
+    )
+
+    type Example struct {
+        PublicField  string
+        privateField int
+    }
+
+    func main() {
+        ex := Example{
+            PublicField:  &quot;Hello&quot;,
+            privateField: 42,
+        }
+
+        fmt.Printf(&quot;Struct memory layout:\n&quot;)
+        fmt.Printf(&quot;Address of publicField:  %p\n&quot;, unsafe.Pointer(&amp;ex.PublicField))
+        fmt.Printf(&quot;Address of privateField: %p\n&quot;, unsafe.Pointer(&amp;ex.privateField))
+    }
+</code></pre>
+<h2>Output</h2>
+<pre><code class="language-go">    Struct memory layout:
+    Address of publicField:  0xc000014070
+    Address of privateField: 0xc000014080
+</code></pre>
+<p>Here, the fields are laid out sequentially, but there may be padding between them to satisfy alignment requirements.</p>
+<h1>2. The reflect Package</h1>
+<p>The <code>reflect</code> package in Go provides the ability to inspect and manipulate the fields of a struct at runtime. However, it enforces visibility rules—unexported fields cannot be accessed directly. This restriction can be bypassed by pairing <code>reflect</code> with <code>unsafe</code>.</p>
+<p>Key components of <code>reflect</code> we’ll use:</p>
+<p><code>reflect.Value</code>: Represents the value of a Go variable.
+<code>reflect.StructField</code>: Describes a struct field, including its offset.</p>
+<h2>Example: Inspecting Private Fields</h2>
+<pre><code class="language-go">    package main
+
+    import (
+    &quot;fmt&quot;
+    &quot;reflect&quot;
+    )
+
+    type Example struct {
+        PublicField  string
+        privateField int
+    }
+
+    func main() {
+        ex := Example{
+        publicField:  &quot;Hello&quot;,
+        privateField: 42,
+    }
+
+    // Use reflection to inspect the fields
+    t := reflect.TypeOf(ex)
+    v := reflect.ValueOf(ex)
+
+    for i := 0; i &lt; t.NumField(); i++ {
+        field := t.Field(i)
+        value := v.Field(i)
+        fmt.Printf(&quot;Field: %s, Value: %v, Exported: %t\n&quot;, field.Name, value, field.IsExported())
+    }
+    }
+</code></pre>
+<p>This will print:</p>
+<pre><code class="language-go">    Field: publicField, Value: Hello, Exported: true
+    Field: privateField, Value: 42, Exported: false
+</code></pre>
+<p>While we can read <code>privateField</code>, modifying it will result in a panic unless we use <code>unsafe</code>.</p>
+<h1>3. The unsafe Package</h1>
+<p>The <code>unsafe</code> package allows you to perform low-level memory operations. It provides tools to:</p>
+<p>Obtain the memory address of a variable.
+Convert between types without type safety.
+Create pointers to arbitrary memory locations using <code>unsafe.NewAt</code>.
+Key types and functions:</p>
+<p><code>unsafe.Pointer</code>: A generic pointer type.
+<code>uintptr</code>: An integer type that can hold pointer values.
+<code>unsafe.NewAt</code>: Constructs a pointer to a value at a specific memory address.</p>
+<h1>4. Combining unsafe and reflect to Modify Private Fields</h1>
+<p>Using <code>reflect</code>, we can obtain the memory offset of a struct field. Then, using <code>unsafe.Pointer</code>, we can calculate the field’s address and modify its value.</p>
+<h2>Step-by-Step Process</h2>
+<ol>
+<li>Obtain a <code>reflect.Value</code> of the struct.</li>
+<li>Use <code>reflect.Value.Field</code> to get a <code>reflect.Value</code> of the private field.</li>
+<li>Check if the field can be set using <code>fieldValue.CanSet()</code>.</li>
+<li>If not, use the <code>UnsafeAddr</code> method to obtain the memory address of the field.</li>
+<li>Convert the address to an <code>unsafe.Pointer</code> and modify the value.</li>
+</ol>
+<h2>Code Example</h2>
+<pre><code class="language-go">    package main
+    import (
+    &quot;fmt&quot;
+    &quot;reflect&quot;
+    &quot;unsafe&quot;
+    )
+    type Example struct {
+        PublicField  string
+        privateField int
+    }
+    func main() {
+        ex := Example{
+            PublicField:  &quot;Hello&quot;,
+            privateField: 42,
+        }
+        fmt.Printf(&quot;Before modification: %+v\n&quot;, ex)
+        // Step 1: Get the reflect.Value of the struct
+        v := reflect.ValueOf(&amp;ex).Elem()
+        // Step 2: Iterate through fields
+        for i := 0; i &lt; v.NumField(); i++ {
+            fieldValue := v.Field(i)
+            if !fieldValue.CanSet() {
+                // Step 3: Access private fields using unsafe
+                fieldValue = reflect.NewAt(fieldValue.Type(), unsafe.Pointer(fieldValue.UnsafeAddr())).Elem()
+            }
+            // Step 4: Modify field values
+            switch fieldValue.Kind() {
+                case reflect.Int:
+                fieldValue.SetInt(99)
+                case reflect.String:
+                fieldValue.SetString(&quot;Updated&quot;)
+            }
+        }
+        fmt.Printf(&quot;After modification: %+v\n&quot;, ex)
+    }
+
+</code></pre>
+<h2>Output</h2>
+<pre><code class="language-go">    Before modification: {PublicField:Hello privateField:42}
+    After modification: {PublicField:Updated privateField:99}
+</code></pre>
+<p>Here, <code>reflect.NewAt</code> creates a pointer to the memory location of each field, allowing us to modify unexported fields safely.</p>
+<h1>5. Internals of reflect and unsafe</h1>
+<h2>How <code>reflect</code> Works</h2>
+<ul>
+<li><code>reflect.Value</code> internally stores the type and a pointer to the data.</li>
+<li>For structs, reflect.Value.Field uses the memory offset of the field to compute its address.</li>
+</ul>
+<h2>How <code>unsafe</code> Works</h2>
+<ul>
+<li><code>unsafe.Pointer</code> allows you to treat memory addresses as arbitrary types.</li>
+<li>By combining unsafe.Pointer with a known type, you can read or write raw memory.</li>
+</ul>
+<h2>Example: Memory Layout with Padding</h2>
+<p>Consider this struct:</p>
+<pre><code class="language-go">    type Example struct {
+        A int32
+        B int64
+}
+</code></pre>
+<p>Memory offsets:</p>
+<pre><code class="language-go">    | A (int32) | Padding (4 bytes) | B (int64) |
+</code></pre>
+<p>The padding ensures B is aligned to an 8-byte boundary, which is required for <code>int64</code>.</p>
+<h1>6. Caveats and Risks</h1>
+<ol>
+<li><strong>Breaks Encapsulation</strong>:
+<ul>
+<li>Modifying private fields violates the intended encapsulation of the struct.</li>
+</ul>
+</li>
+<li><strong>Undefined Behavior</strong>:
+<ul>
+<li>Incorrect use of unsafe can lead to crashes or memory corruption.</li>
+</ul>
+</li>
+</ol>
+<h1>7. Conclusion</h1>
+<p>Using <code>unsafe</code> and <code>reflect</code>, you can access and modify private fields in Go structs. While this is a powerful capability, it comes with significant risks and should only be used when absolutely necessary. Always prefer idiomatic Go practices and reserve these techniques for cases where no other solutions exist.</p>
+
+    </div>
+</div>
+    </div>
+    <footer class="text-center py-4">
+        <p>&copy; 2025 Darshan N A. All rights reserved.</p>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/assets/js/scripts.js"></script>
+</body>
+</html>

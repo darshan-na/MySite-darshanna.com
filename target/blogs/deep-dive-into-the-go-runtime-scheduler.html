@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Dive into the Go Runtime Scheduler</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Highlight.js stylesheet (Atom One Dark theme) -->
+    <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+
+    <!-- Atom One Light -->
+  <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css" disabled>
+
+    <!-- Highlight.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Enable auto-detection -->
+    <script>hljs.highlightAll();</script>
+
+    <link href="/assets/css/styles.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">Darshan N A</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/index.html">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/projects/index.html">Projects</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/blogs/index.html">Blogs</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/rss.xml">RSS</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link theme-toggle" id="theme-toggle" href="#" title="Toggle theme">🔆</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-5">
+        <div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1>Deep Dive into the Go Runtime Scheduler</h1>
+        <p>The Go runtime scheduler is a sophisticated piece of software that orchestrates the execution of goroutines. Its design draws inspiration from both operating system schedulers and user-level thread libraries, combining the best features of both. This deep dive will explore the internal workings of the Go runtime scheduler in detail, complete with practical examples.</p>
+<h2>Key Components of the Scheduler</h2>
+<ol>
+<li><strong>Goroutines (G)</strong>: Goroutines are lightweight threads managed by the Go runtime. Each goroutine has its own stack, which starts small and grows as needed. This allows the Go runtime to manage thousands of goroutines efficiently.</li>
+<li><strong>Processors (P)</strong>: Processors are logical entities that represent the resources required to execute goroutines. The number of processors is determined by the GOMAXPROCS variable, which defaults to the number of CPU cores available.</li>
+<li><strong>Machine Threads (M)</strong>: Machine threads are OS threads that execute goroutines. The Go runtime maps goroutines onto these threads, but there are generally fewer threads than goroutines.</li>
+</ol>
+<h2>Scheduler Design and Operation</h2>
+<p>The scheduler’s design revolves around the management of these three entities (G, P, M) to ensure efficient execution of goroutines. Here’s a closer look at its operation:</p>
+<ol>
+<li><strong>Work Stealing</strong>: Each processor (P) maintains a local work queue of runnable goroutines. When a processor’s work queue is empty, it can steal goroutines from the work queues of other processors. This dynamic work distribution helps balance the load across multiple CPUs.</li>
+<li><strong>Goroutine States</strong>: Goroutines can be in several states:
+<ul>
+<li>Runnable: Ready to run but not currently executing.</li>
+<li>Running: Currently being executed by a machine thread.</li>
+<li>Waiting: Blocked, waiting for some event (e.g., I/O operation).</li>
+<li>Dead: Finished execution and ready for garbage collection.</li>
+</ul>
+</li>
+<li><strong>Preemption</strong> : The scheduler uses a mechanism called “asynchronous preemption” to interrupt long-running goroutines, allowing other goroutines to execute. This prevents a single goroutine from monopolizing CPU time. Preemption points are inserted into the code during compilation, and the runtime checks these points to decide whether to yield control.In general if sysmon detects a goroutine running longer than 10ms(with caveats), the goroutine is preempted and is put into a global runqueue. Since it essentially starved other goroutines from running, it would be unfair to put them back into a per-core runqueue. These global runqueues are less frequently checked by the individual cores, hence contention is not a real issue.</li>
+</ol>
+<p><strong>Example: Creating and Running Goroutines</strong>
+Let’s start with a basic example of creating and running goroutines:</p>
+<pre><code class="language-go">    package main
+
+    import (
+        &quot;fmt&quot;
+        &quot;time&quot;
+    )
+
+    func g1() {
+        for i := 1; i &lt;= 5; i++ {
+            fmt.Println(i)
+            time.Sleep(100 * time.Millisecond)
+        }
+    }
+
+    func main() {
+        go g1()  // Start a new goroutine
+        time.Sleep(1 * time.Second)  // Give the goroutine time to run
+    }
+</code></pre>
+<h2>Detailed Scheduler Operation</h2>
+<ol>
+<li>
+<p><strong>Initialization</strong>: The scheduler initializes the GOMAXPROCS (lets say 2) number of processors (P) based on the available CPU cores or the value set by the user. It also creates an initial machine thread (M) to start execution.</p>
+</li>
+<li>
+<p><strong>Goroutine Creation</strong>: When a new goroutine is created using the go keyword, the runtime allocates a new goroutine (G) structure, initializes its stack, and places it in the local work queue of the current processor (P).</p>
+</li>
+<li>
+<p><strong>Execution Loop</strong>:</p>
+<ul>
+<li>Each machine thread (M) fetches goroutines from its associated processor’s work queue and executes them.</li>
+<li>If the local queue is empty, the thread attempts to steal goroutines from other processors.</li>
+<li>The runtime keeps track of the state of each goroutine, transitioning them between runnable, running, and waiting states as necessary.</li>
+</ul>
+</li>
+<li>
+<p><strong>Blocking Operations</strong>: When a goroutine performs a blocking operation (e.g., a system call or I/O), the runtime marks it as waiting and schedules another runnable goroutine. Lets look at an example to understand this better.</p>
+</li>
+</ol>
+<h2>Advanced Features</h2>
+<ol>
+<li><strong>Spinning and Parking</strong>: To avoid excessive thread creation, the runtime uses a technique called “spinning” where idle machine threads (M) spin for a short period, hoping new work will arrive. If no work arrives, the thread is parked (blocked) and later reactivated when work becomes available.</li>
+<li><strong>Sysmon</strong>: The runtime includes a system monitor (sysmon) that periodically wakes up to perform housekeeping tasks, such as preemption, monitoring goroutine states, and handling timers.</li>
+<li><strong>Timers and Network Polling</strong>: The scheduler integrates with a timer system to handle timed operations efficiently. It also includes a network poller to manage network I/O, allowing goroutines to block on network operations without tying up machine threads.</li>
+</ol>
+<h2>Performance Considerations</h2>
+<ol>
+<li><strong>Efficient Context Switching</strong>: The lightweight nature of goroutines and the scheduler’s ability to efficiently manage them results in low overhead for context switching compared to traditional threads.</li>
+<li><strong>Scalability</strong>: The work-stealing mechanism and dynamic load balancing allow Go programs to scale efficiently across multiple CPU cores, making it well-suited for concurrent applications.</li>
+<li><strong>Responsiveness</strong>: Preemption and efficient handling of blocking operations ensure that Go applications remain responsive, even under heavy workloads.</li>
+</ol>
+<h2>Conclusion</h2>
+<p>The Go runtime scheduler is a powerful and efficient system for managing concurrency. Its design, which includes work stealing, preemption, and efficient handling of blocking operations, allows Go to support massive concurrency with minimal overhead.In summary, Go’s scheduler <strong>multiplexes</strong> a large number of gorountines onto a smaller number of OS threads.This is know as the <strong>M:N model</strong> (M goroutines are modeled onto N os threads).By understanding the internals of the scheduler, developers can better leverage its capabilities to build high-performance, scalable applications.</p>
+<p>Thank you for exploring the intricacies of the Go runtime scheduler with me. Stay tuned for our next dive into another fascinating topic.Until then, keep pushing the boundaries of what’s possible!</p>
+
+    </div>
+</div>
+    </div>
+    <footer class="text-center py-4">
+        <p>&copy; 2025 Darshan N A. All rights reserved.</p>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/assets/js/scripts.js"></script>
+</body>
+</html>
