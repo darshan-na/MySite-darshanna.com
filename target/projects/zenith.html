@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenith</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/css/styles.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">Darshan N A</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/index.html">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/projects/index.html">Projects</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/blogs/index.html">Blogs</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/rss.xml">RSS</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link theme-toggle" id="theme-toggle" href="#" title="Toggle theme">🔆</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-5">
+        <div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1>Zenith</h1>
+        <h2>Introduction</h2>
+<p>In the era of dynamic web applications, static site generators (SSGs) have regained popularity for their simplicity, speed, and security. This blog post explores my journey in building a custom static site generator using C++, designed to power this very website. Unlike popular tools like Jekyll or Hugo, this project offers a lightweight, hands-on approach to generating static HTML pages from Markdown files, with support for themes, tags, and RSS feeds.</p>
+<h2>Why C++?</h2>
+<p>Choosing C++ for an SSG might seem unconventional, given the dominance of languages like Python or JavaScript. However, C++ brings unique advantages:</p>
+<ol>
+<li><strong>Performance</strong>: Fast compilation and generation, ideal for large sites.</li>
+<li><strong>Learning</strong>: A personal challenge to leverage C++ for a web-related task.</li>
+</ol>
+<h2>Project Overview</h2>
+<p>This static site generator is a command-line tool that transforms Markdown files in a <code>content</code> directory into a <code>public</code> directory of HTML pages. Key features include:</p>
+<ol>
+<li><strong>Markdown Parsing</strong>: Converts Markdown to HTML using a custom parser.</li>
+<li><strong>Template System</strong>: Uses base templates with placeholders for dynamic content.</li>
+<li><strong>Tag Support</strong>: Categorizes posts with tags with clickable tag pages.</li>
+<li><strong>Theme Switching</strong>: Supports light and dark modes, toggled via JavaScript.</li>
+<li><strong>RSS Generation</strong>: Creates an RSS feed for blog updates.</li>
+</ol>
+<h2>How It Works</h2>
+<ol>
+<li><strong>Parsing Markdown</strong>: The <code>MarkdownParser</code> class extracts front matter (title, date, description, tags) and converts the body to HTML.</li>
+<li><strong>Page Generation</strong>: The <code>PageGenerator</code> class loads templates, replaces placeholders, and writes output files.</li>
+<li><strong>Build Process</strong>: A <code>Makefile</code> compiles the C++ code, and a script regenerates the site on file changes.</li>
+<li><strong>Deployment</strong>: The <code>public</code> folder is served via a simple HTTP server or deployed to a host like Netlify.</li>
+</ol>
+<h3>Example Workflow</h3>
+<ol>
+<li>Add a new post: <code>content/blogs/new-post.md</code>.</li>
+<li>Run <code>./build/zenith</code> to generate <code>public/blogs/new-post.html</code>.</li>
+<li>Test locally with <code>http-server public -p 8080</code>.</li>
+<li>Deploy with <code>scp -r public/* user@server:/var/www/html/</code>.</li>
+</ol>
+<p>Explore the source code <a href="https://github.com/darshan-na/zenith">on my GitHub</a> and try building your own SSG!</p>
+<p>Happy coding!</p>
+
+    </div>
+</div>
+    </div>
+    <footer class="text-center py-4">
+        <p>&copy; 2025 Darshan N A. All rights reserved.</p>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/assets/js/scripts.js"></script>
+</body>
+</html>
