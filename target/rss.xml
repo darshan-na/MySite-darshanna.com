@@ -1,20 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
     <channel>
-        <title>My Personal Blog</title>
-        <link>https://yoursite.com</link>
-        <description>My personal blog posts</description>
+        <title>Darshan's Personal Blog</title>
+        <link>https://www.darshanna.com</link>
+        <description>Darshan's personal blog posts</description>
+        <language>en-us</language>
+        <lastBuildDate>Fri, 05 Sep 2025 15:31:13 GMT</lastBuildDate>
+        <ttl>60</ttl>
         <item>
             <title>Modifying Private Variables of a Struct in Go Using unsafe and reflect</title>
-            <link>https://yoursite.com/blogs/modifying-private-variables-of-a-struct-in-go-using-unsafe-and-reflect.html</link>
+            <link>https://darshanna.com/blogs/modifying-private-variables-of-a-struct-in-go-using-unsafe-and-reflect.html</link>
             <description>A deep dive into how Go’s reflect and unsafe packages can be used to inspect and modify private struct fields by bypassing visibility rules.</description>
             <pubDate>2025-01-14</pubDate>
+            <guid isPermaLink="true">https://darshanna.com/blogs/modifying-private-variables-of-a-struct-in-go-using-unsafe-and-reflect.html</guid>
         </item>
         <item>
             <title>Deep Dive into the Go Runtime Scheduler</title>
-            <link>https://yoursite.com/blogs/deep-dive-into-the-go-runtime-scheduler.html</link>
+            <link>https://darshanna.com/blogs/deep-dive-into-the-go-runtime-scheduler.html</link>
             <description>A deep dive into how Go’s reflect and unsafe packages can be used to inspect and modify private struct fields by bypassing visibility rules.</description>
             <pubDate>2024-07-13</pubDate>
+            <guid isPermaLink="true">https://darshanna.com/blogs/deep-dive-into-the-go-runtime-scheduler.html</guid>
         </item>
     </channel>
 </rss>
