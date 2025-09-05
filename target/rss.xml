@@ -5,7 +5,7 @@
         <link>https://www.darshanna.com</link>
         <description>Darshan's personal blog posts</description>
         <language>en-us</language>
-        <lastBuildDate>Fri, 05 Sep 2025 15:32:38 GMT</lastBuildDate>
+        <lastBuildDate>Fri, 05 Sep 2025 20:30:08 GMT</lastBuildDate>
         <ttl>60</ttl>
         <item>
             <title>Modifying Private Variables of a Struct in Go Using unsafe and reflect</title>
@@ -13,6 +13,13 @@
             <description>A deep dive into how Go’s reflect and unsafe packages can be used to inspect and modify private struct fields by bypassing visibility rules.</description>
             <pubDate>2025-01-14</pubDate>
             <guid isPermaLink="true">https://darshanna.com/blogs/modifying-private-variables-of-a-struct-in-go-using-unsafe-and-reflect.html</guid>
+        </item>
+        <item>
+            <title>Demystifying C++ Lambdas:They’re Basically Classes Under the Hood</title>
+            <link>https://darshanna.com/blogs/demystifying-c-lambdastheyre-basically-classes-under-the-hood.html</link>
+            <description>A deep dive into how c++ lambda functions are seen through the eyes of a compiler.</description>
+            <pubDate>2025-09-06</pubDate>
+            <guid isPermaLink="true">https://darshanna.com/blogs/demystifying-c-lambdastheyre-basically-classes-under-the-hood.html</guid>
         </item>
         <item>
             <title>Deep Dive into the Go Runtime Scheduler</title>

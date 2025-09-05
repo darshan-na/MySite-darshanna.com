@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demystifying C++ Lambdas:They’re Basically Classes Under the Hood</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Highlight.js stylesheet (Atom One Dark theme) -->
+    <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+
+    <!-- Atom One Light -->
+  <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css" disabled>
+
+    <!-- Highlight.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Enable auto-detection -->
+    <script>hljs.highlightAll();</script>
+
+    <link href="/assets/css/styles.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/images/dna2.ico">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">Darshan N A</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/index.html">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/projects/index.html">Projects</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/blogs/index.html">Blogs</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/rss.xml">RSS</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link theme-toggle" id="theme-toggle" href="#" title="Toggle theme">🔆</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-5">
+        <div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1>Demystifying C++ Lambdas:They’re Basically Classes Under the Hood</h1>
+        <p>Hey there!! If you've been messing around with C++11 or later, you've likely used lambda functions. They're super handy for writing quick, inline functions without all the boilerplate of regular functions or functors. While tinkering on a side project, I hit a wall when I couldn't modify a variable captured by value using <code>[=]</code>. This blog dives into my journey to understand why that happened. <strong>Spoiler alter</strong>: Under the covers, the compiler turns them into classes. Yeah, you heard that right, actual classes!!!!.</p>
+<h2>A Quick Refresher: What Are Lambdas in C++?</h2>
+<p>Before we get into the internals, let’s recall what a lambda looks like. Introduced in C++11, a lambda expression is an <strong>anonymous</strong> function object that can capture variables from its surrounding scope. The basic syntax is:</p>
+<pre><code class="language-cpp">    [ captures ] ( parameters ) specifiers -&gt; return_type { body }
+</code></pre>
+<ul>
+<li>Captures: How the lambda grabs variables from outside (e.g., [=] for by-value, [&amp;] for by-reference).</li>
+<li>Parameters: Similar to function agruments (optional).</li>
+<li>Specifiers: Things like <strong>mutable</strong> or <strong>constexpr</strong> (more on these later).</li>
+<li>Return Type: Trailing return type (optional; compiler deduces if omitted).</li>
+<li>Body: The code to execute.</li>
+</ul>
+<h3>Example</h3>
+<pre><code class="language-cpp">    auto add = [](int a, int b) { return a + b; };
+    std::cout &lt;&lt; add(3, 4);  // Outputs: 7
+</code></pre>
+<h2>Lambdas as Compiler-Generated Classes</h2>
+<p>At compile time, the C++ compiler translates your lambda into an unnamed class. This class:</p>
+<ol>
+<li><strong>Has Data Members for Captures</strong>: Each captured variable becomes a private member variable in the class.</li>
+<li><strong>Overloads operator()</strong>: This makes the object callable like a function.</li>
+<li><strong>May Inherit or Use Templates</strong>: For generic lambdas or other features.</li>
+<li><strong>Is Unique Per Lambda</strong>: Each lambda expression generates its own type, even if they look identical.</li>
+</ol>
+<h3>Examples</h3>
+<ol>
+<li>A simple lamda function to compute the product of two numbers</li>
+</ol>
+<pre><code class="language-cpp">#include &lt;iostream&gt;
+
+int main()
+{
+    int x =10, y=20;
+    auto product = [x,y]() -&gt; int{
+        return x * y;
+    };
+    std::cout &lt;&lt; product();
+}
+</code></pre>
+<p>Lets inspect the above code from the eyes of a complier</p>
+<pre><code class="language-cpp">#include &lt;iostream&gt;
+
+int main()
+{
+    int x = 10;
+    int y = 20;
+    
+    class __lambda_7_20
+    {
+        public: 
+            inline /*constexpr */ int operator()() const
+            {
+                return x * y;
+            }
+        
+        private: 
+            int x;
+            int y;
+        
+        public:
+            __lambda_7_20(int &amp; _x, int &amp; _y): x{_x}, y{_y} {} 
+    };
+    
+    __lambda_7_20 product = __lambda_7_20{x, y};
+    std::cout.operator&lt;&lt;(product.operator()());
+    return 0;
+}
+</code></pre>
+<p>Key points:</p>
+<ul>
+<li>The class is local to the scope where the lambda is defined.</li>
+<li>If no captures, it’s like a stateless functor (A functor or a function object is an object of a class or a struct that can be called like a function - Achieved through overloading <code>()</code> operator).</li>
+</ul>
+<ol start="2">
+<li>Lets tweak the above example by having the lambda function take in a parameter</li>
+</ol>
+<pre><code class="language-cpp">#include &lt;iostream&gt;
+
+int main()
+{
+    int x =10, y=20;
+    auto bodmas = [x,y](auto z) -&gt; int{
+        return x * y + z;
+    };
+    std::cout &lt;&lt; bodmas(100);
+}
+</code></pre>
+<p>From the eyes of a compiler:</p>
+<pre><code class="language-cpp">#include &lt;cstdio&gt;
+#include &lt;iostream&gt;
+
+int main()
+{
+  int x = 10;
+  int y = 20;
+    
+  class __lambda_7_19
+  {
+    public: 
+    template&lt;typename type_parameter_0_0&gt;
+    inline /*constexpr */ int operator()(type_parameter_0_0 z) const
+    {
+      return (x * y) + z;
+    }
+    
+    // Template instantiation 
+    #ifdef INSIGHTS_USE_TEMPLATE
+    template&lt;&gt;
+    inline /*constexpr */ int operator()&lt;int&gt;(int z) const
+    {
+      return (x * y) + z;
+    }
+    #endif
+    
+    private: 
+    int x;
+    int y;
+    
+    public:
+    __lambda_7_19(int &amp; _x, int &amp; _y): x{_x}, y{_y}{}    
+  };
+  
+  __lambda_7_19 bodmas = __lambda_7_19{x, y};
+  std::cout.operator&lt;&lt;(bodmas.operator()(100));
+  return 0;
+}
+</code></pre>
+<p>It can be seen that the parameter z of type auto is deduced to the <strong>template type parameter T</strong>.</p>
+<h3>The Main Topic: The Modification Error</h3>
+<p>This is where it gets interesting, and honestly, the heart of why understanding the class model matters. When you capture by value ([=] or [var]), the compiler copies the variable into a class member. But because operator() is const by default, that member is treated as read-only inside the lambda body. Trying to modify it? Compiler says no.
+Let's take the same example of multiplying two numbers.</p>
+<pre><code class="language-cpp">int main()
+{
+   int x =10, y=20;
+   auto product_tweaked = [=]() -&gt; int{
+       x = x+1; // error
+       return x * y;
+   };
+   std::cout &lt;&lt; product_tweaked();
+}
+</code></pre>
+<p>The complier sees it as:</p>
+<pre><code class="language-cpp">#include &lt;iostream&gt;
+
+int main()
+{
+ int x = 10;
+ int y = 20;
+   
+ class __lambda_7_20
+ {
+   public: 
+       inline /*constexpr */ int operator()() const // const locks it down
+       {
+           x = x + 1; // modification prohibited in a const method :)
+           return x * y;
+       }
+   
+   private: 
+       int x;
+       int y;
+       
+   public:
+    __lambda_7_20(int &amp; _x, int &amp; _y): x{_x}, y{_y} {}  
+ };
+ 
+ __lambda_7_20 product = __lambda_7_20{x, y};
+ std::cout.operator&lt;&lt;(product.operator()());
+ return 0;
+}
+</code></pre>
+<p>The const qualifier means the method promises not to change the object's state. Since x is a member, incrementing it violates that.</p>
+<p><strong>The Fix</strong>: Add mutable</p>
+<p>Slap on mutable after the params, and it removes the const from operator():</p>
+<pre><code class="language-cpp"> int main()
+{
+    int x =10, y=20;
+    auto product_tweaked = [=]() mutable -&gt; int{
+        x = x+1; // can successfully modify
+        return x * y;
+    };
+    std::cout &lt;&lt; product_tweaked();
+}
+</code></pre>
+<pre><code class="language-cpp">#include &lt;iostream&gt;
+
+int main()
+{
+  int x = 10;
+  int y = 20;
+    
+  class __lambda_7_28
+  {
+    public: 
+    inline /*constexpr */ int operator()() // No const – free to modify
+    {
+      x = x + 1;
+      return x * y;
+    }
+    
+    private: 
+    int x;
+    int y;
+    
+    public:
+    __lambda_7_28(int &amp; _x, int &amp; _y): x{_x}, y{_y}{}
+    
+  };
+  
+  __lambda_7_28 product_tweaked = __lambda_7_28{x, y};
+  std::cout.operator&lt;&lt;(product_tweaked.operator()());
+  return 0;
+}
+</code></pre>
+<p>Boom, it works. You're modifying the copy inside the lambda's &quot;object,&quot; not the original variable.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>Mixing: [=] with mutable lets you tweak all by-value copies.</li>
+<li>mutable only affects by-value captures. By-reference captures ([&amp;]) are always modifiable because they're refs/pointers to the original – no const issue there (you are not modifying the actual reference).</li>
+<li>Standards note: This has been in C++11 from the start. Check <a href="https://eel.is/c++draft/expr.prim.lambda">expr.prim.lambda</a> in the standard for the gory details.</li>
+</ul>
+
+    </div>
+</div>
+    </div>
+    <footer class="text-center py-4">
+        <p>&copy; 2025 Darshan N A. All rights reserved.</p>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/assets/js/scripts.js"></script>
+</body>
+</html>
