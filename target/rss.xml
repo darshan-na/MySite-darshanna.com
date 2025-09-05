@@ -5,7 +5,7 @@
         <link>https://www.darshanna.com</link>
         <description>Darshan's personal blog posts</description>
         <language>en-us</language>
-        <lastBuildDate>Fri, 05 Sep 2025 15:31:13 GMT</lastBuildDate>
+        <lastBuildDate>Fri, 05 Sep 2025 15:32:38 GMT</lastBuildDate>
         <ttl>60</ttl>
         <item>
             <title>Modifying Private Variables of a Struct in Go Using unsafe and reflect</title>
