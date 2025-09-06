@@ -5,7 +5,7 @@
         <link>https://www.darshanna.com</link>
         <description>Darshan's personal blog posts</description>
         <language>en-us</language>
-        <lastBuildDate>Fri, 05 Sep 2025 20:30:08 GMT</lastBuildDate>
+        <lastBuildDate>Sat, 06 Sep 2025 12:17:42 GMT</lastBuildDate>
         <ttl>60</ttl>
         <item>
             <title>Modifying Private Variables of a Struct in Go Using unsafe and reflect</title>
@@ -13,6 +13,13 @@
             <description>A deep dive into how Go’s reflect and unsafe packages can be used to inspect and modify private struct fields by bypassing visibility rules.</description>
             <pubDate>2025-01-14</pubDate>
             <guid isPermaLink="true">https://darshanna.com/blogs/modifying-private-variables-of-a-struct-in-go-using-unsafe-and-reflect.html</guid>
+        </item>
+        <item>
+            <title>Behind the Scenes of Load Balancing:Uncovering the Hidden IP Translation</title>
+            <link>https://darshanna.com/blogs/behind-the-scenes-of-load-balancinguncovering-the-hidden-ip-translation.html</link>
+            <description>A behind-the-scenes look at how load balancers manage the tricky problem of IP translation.We’ll explore why backend responses can confuse clients, how techniques like SNAT and DSR solve it, and how AWS Hyperplane takes it to hyperscale.</description>
+            <pubDate>2025-09-06</pubDate>
+            <guid isPermaLink="true">https://darshanna.com/blogs/behind-the-scenes-of-load-balancinguncovering-the-hidden-ip-translation.html</guid>
         </item>
         <item>
             <title>Demystifying C++ Lambdas:They’re Basically Classes Under the Hood</title>

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Behind the Scenes of Load Balancing:Uncovering the Hidden IP Translation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Highlight.js stylesheet (Atom One Dark theme) -->
+    <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+
+    <!-- Atom One Light -->
+  <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css" disabled>
+
+    <!-- Highlight.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Enable auto-detection -->
+    <script>hljs.highlightAll();</script>
+
+    <link href="/assets/css/styles.css" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="/images/dna2.ico">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="/">Darshan N A</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/index.html">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/projects/index.html">Projects</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/blogs/index.html">Blogs</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/rss.xml">RSS</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link theme-toggle" id="theme-toggle" href="#" title="Toggle theme">🔆</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-5">
+        <div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1>Behind the Scenes of Load Balancing:Uncovering the Hidden IP Translation</h1>
+        <p>Setting up a load balancer for your application?? Ever wondered how a response from the backend server is routed back to the client??
+Now picture this: A user pings your service via the load balancer's IP, but the reply comes from some backend server's address instead. Boom— the client's TCP/IP stack  freaks out, thinking, &quot;Wait, that's not who I talked to!&quot; and drops the link. If you've ever wondered how networks dodge this bullet without sacrificing speed or security, stick around. We'll unpack it all, from the basics to the clever fixes, and by the end, you'll see why this stuff is fascinating.</p>
+<h2>What are Load Balancers?</h2>
+<p>Before diving into the topic, let’s take a moment to revisit what load balancers are, for readers who might be unfamiliar.
+Load balancers are essentially the bouncers of the internet world—they stand between your users and your servers, spreading out incoming requests so no one machine gets slammed. Whether it's a shopping site during a flash sale or a streaming service during prime time, these tools ensure smooth sailing by distributing the load evenly. They
+can detect if a server's acting up and reroute traffic elsewhere, all while scaling up as needed.</p>
+<h2>Layer 4 vs. Layer 7:</h2>
+<p>Load balancers aren't one-size-fits-all; they operate at different &quot;layers&quot; of the network stack, which basically means they vary in how smart they are and speed.</p>
+<ul>
+<li><strong>Layer 4 Balancers (The Speed Demons)</strong>: Network load balancers (NLBs) operate at the transport layer, handling protocols like TCP and UDP. They inspect IP addresses and ports to decide where to route traffic, often relying on lightweight hashing to ensure connection consistency. In practice, most NLBs follow what’s known as the 5-tuple approach: (source IP, source port, destination IP, destination port, protocol). This tuple is hashed to determine the target backend server.This tuple is then hashed to a particular backend server. AWS's Network Load Balancer (NLB) is a prime example—perfect. No deep dives into your data; just fast forwarding.</li>
+<li><strong>Layer 7 Balancers (The Brainy Ones)</strong>: Up at the application layer, these inspect HTTP headers, URLs, even cookies. Want to route shopping cart requests one way and login pages another? AWS's Application Load Balancer (ALB) has your back. They're great for modern web apps but chew a bit more processing power since they're peeking inside the packets.</li>
+</ul>
+<pre><code class="language-txt">| Aspect                 | Layer 4 (e.g., NLB)            | Layer 7 (e.g., ALB)                  |
+|------------------------|--------------------------------|--------------------------------------|
+| What they check        | IPs, ports, protocols          | URLs, headers, content               |
+| Speed &amp; Efficiency     | Super fast, low overhead       | Smarter but slightly slower          |
+| Best For               | High-volume, low-latency needs | Content-based routing, like APIs     |
+| Client IP Handling     | Often preserves it             | Usually masks it with translation    |
+</code></pre>
+<h2>The Core Topic: Response Packets and the IP Identity Crisis</h2>
+<p>In a typical setup with client IP preservation (common in NLB for accurate logging and security), the client sends a request to the load balancer's VIP. The balancer forwards it to a backend server without changing the source IP, so the backend sees the real client's address. The server processes the request and crafts a response, setting its own IP as the source and the client's IP as the destination.
+If this response were sent directly into the network, it would bypass the balancer, leading to asymmetric routing. More critically, the client—having initiated the connection to the VIP—expects the response's source IP to match that VIP. A packet arriving from the backend's IP instead? The TCP stack flags it as invalid, potentially resetting the connection.</p>
+<pre><code class="language-sql">Client
+   | Request
+   v
+Load Balancer (VIP)
+   | Request
+   v
+Backend Server (sees Client IP)
+   | Response
+   v
+Client  &lt;-- (Response comes from Backend IP instead of VIP ❌)
+
+</code></pre>
+<p>So, networks must ensure responses appear to come from the balancer, maintaining symmetry and IP consistency. But how? Enter traditional techniques like Source Network Address Translation (SNAT) and Direct Server Return (DSR), before we get to AWS's advanced solution.</p>
+<h3>Source Network Address Translation (SNAT)</h3>
+<p>SNAT is the go-to for simplicity. Here's how it rolls: When the load balancer forwards a request to the backend, it rewrites the source IP from the client's to its own VIP. The backend thinks the request came from the balancer and responds accordingly—to the VIP. The balancer then reverses the translation, sending the response back to the client with the VIP as the source IP.</p>
+<pre><code class="language-sql">Request Path:
+
+Client (IP=C1) 
+   |
+   v
+Load Balancer (VIP)  -- rewrites source IP to VIP
+   |
+   v
+Backend Server (sees source=VIP, dest=Backend)
+
+Response Path:
+
+Backend Server (src=Backend, dest=VIP)
+   |
+   v
+Load Balancer -- rewrites src back to VIP and dest back client IP
+   |
+   v
+Client (sees src=VIP, dest=C1 ✅ )
+
+</code></pre>
+<p>Pros: Easy setup, works anywhere, handles stateful stuff like sessions beautifully.
+Cons: Backend loses the original client IP, so say goodbye to accurate geo-tracking or per-user logs without extra headers.
+When to use it: Pretty much always for Layer 7 balancers or when you don't need client IP visibility on the backend. It's cloud-friendly and doesn't care about network topology—great for distributed setups where servers are scattered.</p>
+<h3>Direct Server Return (DSR)</h3>
+<p>For performance-focused setups, DSR preserves the client IP on the inbound path. The load balancer forwards requests without SNAT, but the backend is configured with the VIP on a loopback interface. When responding, the server spoofs the VIP as its source IP, sending packets directly to the client—bypassing the balancer on the return path. This reduces load on the balancer, boosting throughput for bandwidth-heavy apps. The client sees the expected VIP as the source, avoiding disconnection. However, it requires each backend server to have the LB's VIP configured as a loopback address.</p>
+<h4>A deep dive into DSR using an example</h4>
+<ul>
+<li>The load balancer receives a client request destined for its Virtual IP (VIP).</li>
+<li>It forwards the request to a backend server without changing the IP headers (no SNAT or DNAT)—preserving the original source (client IP) and destination (VIP).</li>
+<li>The backend server is configured with the VIP on a loopback interface</li>
+<li>The load balancer does MAT (Mac Address Translation) to have the request routed to a specific backend server</li>
+<li>The backend processes the request and sends the response directly to the client, spoofing the source IP as the VIP (so the client sees the expected IP and doesn't drop the connection).</li>
+</ul>
+<h5>Where MAC Address Translation Comes In</h5>
+<p>MAC addresses operate at Layer 2 (Data Link layer) and are only relevant within the same local network segment (e.g., a VLAN or subnet). In DSR, the key assumption is that the load balancer and backend servers are on the same Layer 2 network (no routing hop between them). Here's why and how MAT is involved:</p>
+<ol>
+<li>Inbound Path (Client → Load Balancer → Backend):</li>
+</ol>
+<ul>
+<li>The incoming packet from the client has:
+<ul>
+<li>Destination IP: VIP (load balancer's IP).</li>
+<li>Destination MAC: The load balancer's MAC (resolved via ARP).</li>
+</ul>
+</li>
+<li>The load balancer selects a backend server based on its algorithm (e.g., hash or round-robin).</li>
+<li>Instead of routing the packet (which would involve IP changes), the load balancer acts like a bridge or switch: It rewrites the destination MAC address from its own MAC to the backend server's MAC.</li>
+<li>The IP headers remain untouched (destination IP stays as VIP).</li>
+<li>The packet is then forwarded directly to the backend on the same L2 segment.</li>
+<li>Without this MAT, the packet wouldn't reach the backend— it would still be addressed to the load balancer's MAC and get stuck.</li>
+</ul>
+<p>This is why DSR is sometimes called &quot;Layer 2 DSR&quot; or &quot;triangle mode.&quot; It's efficient because it avoids full IP rewriting, but it relies on L2 proximity.</p>
+<pre><code class="language-sql">Client (src=C1, dst=VIP, MAC=LB)
+   |
+   v
+Load Balancer -- rewrites dst MAC=Backend, IP untouched
+   |
+   v
+Backend Server (VIP on loopback, sees src=C1, dst=VIP)
+
+</code></pre>
+<ol start="2">
+<li>Outbound Path (Backend → Client):</li>
+</ol>
+<ul>
+<li>
+<p>The backend constructs the response packet with:</p>
+<ul>
+<li>Source IP: VIP (spoofed).</li>
+<li>Destination IP: Client IP.</li>
+<li>Source MAC: The backend's own MAC.</li>
+<li>Destination MAC: The next-hop router's MAC (resolved via ARP if needed).</li>
+</ul>
+</li>
+<li>
+<p>No MAC translation is required here because the backend sends the packet directly into the network. As it traverses routers toward the client, MAC addresses are rewritten hop-by-hop anyway (standard Ethernet behavior).</p>
+</li>
+<li>
+<p>The client receives the packet with the expected source IP (VIP), and the TCP stack accepts it. The source MAC at delivery will be whatever the client's local router/gateway uses—not relevant to the connection.</p>
+</li>
+</ul>
+<pre><code class="language-sql">Backend Server (src=VIP, dst=C1, srcMac=BackendMAC, destMac=MAC of next hop )
+   |
+   v
+Direct to Client (bypasses LB)
+   |
+   v
+Client (sees src=VIP ✅)
+
+</code></pre>
+<h3>AWS Hyperplane</h3>
+<p>AWS didn't just build load balancers; they engineered an entire distributed system to handle networking at hyperscale. At the heart of AWS's Network Load Balancer (NLB) is Hyperplane—a sophisticated, software-defined networking (SDN) subsystem integrated into Amazon VPC. It's not a single device but a distributed packet-forwarding engine running on fleets of EC2 instances across Availability Zones, powering services like NLB, NAT Gateway, and even Lambda VPC networking.</p>
+<h4>How Hyperplane Works: A Deep Dive</h4>
+<p>Hyperplane creates the illusion of a traditional network while operating in a fully virtualized, distributed environment. Here's the step-by-step magic, focusing on solving the IP mismatch:</p>
+<ol>
+<li>
+<p>Hyperplane's Role in the Big Picture</p>
+<p>Hyperplane isn't a single device or server; it's a software-defined, distributed packet-forwarding engine integrated into the Amazon VPC networking fabric. It powers several AWS services beyond NLB, like NAT Gateways and VPC endpoints, by running on fleets of EC2 instances across Availability Zones (AZs). For NLB specifically, Hyperplane acts as the &quot;brain&quot; that makes the load balancer appear as a seamless, scalable entity while manipulating traffic transparently.</p>
+<p>When you create an NLB, it provisions Elastic Network Interfaces (ENIs) in your specified subnets (one per AZ typically). Incoming packets destined for the NLB's IP arrive at these ENIs, but Hyperplane intercepts and processes them within the VPC data plane. This setup allows NLB to scale horizontally without bottlenecks, handling millions of flows per second.</p>
+</li>
+<li>
+<p>Backend Server Selection</p>
+<p>Hyperplane decides which backend server (target) gets the request using a consistent flow hashing algorithm. Here's how:</p>
+<ul>
+<li>It computes a hash based on the connection's 5-tuple (source IP, source port, destination IP, destination port, and protocol).</li>
+<li>This hash maps the flow to a healthy target from your target group, ensuring all packets in the same TCP/UDP flow go to the same backend for consistency (e.g., no     mid-connection rerouting).</li>
+<li>If a target becomes unhealthy (via health checks), Hyperplane excludes it from the hash space and reroutes new flows accordingly.</li>
+<li>This decision happens dynamically and distributively—packets might land on different Hyperplane nodes, but shared state ensures consistent routing.</li>
+</ul>
+<p>Hyperplane uses techniques like shuffle sharding to distribute workloads across nodes, minimizing blast radius from failures and enabling massive scale.</p>
+</li>
+<li>
+<p>Packet Manipulation and Routing</p>
+<p>Hyperplane performs network address translation (NAT) and other manipulations in-flight, creating the &quot;illusion&quot; of direct communication while ensuring symmetry and client IP preservation. No changes are needed on your backend servers.</p>
+<ul>
+<li>
+<p>Inbound Traffic (Client to Backend):</p>
+<ul>
+<li>Packet arrives at NLB's IP (VIP).</li>
+<li>Hyperplane rewrites the destination IP from the VIP to the selected backend's private IP (Destination NAT or DNAT).</li>
+<li>It also adjusts the destination MAC address to the backend's ENI.</li>
+<li>The source IP (client's) remains unchanged, so the backend sees the real client IP for logging/security.</li>
+<li>Packet is forwarded within the VPC to the backend.</li>
+</ul>
+</li>
+<li>
+<p>Outbound Traffic (Backend to Client):</p>
+<ul>
+<li>Backend responds with its own IP as source and client's IP as destination.</li>
+<li>As the packet traverses the VPC (e.g., toward an Internet Gateway or NAT), Hyperplane intercepts it.</li>
+<li>It rewrites the source IP to the NLB's VIP (Source NAT or SNAT) and forges the source MAC to match the NLB's ENI.</li>
+<li>This ensures the client sees the response coming from the expected VIP, avoiding TCP resets due to IP mismatches.</li>
+<li>Symmetry is maintained—firewalls/stateful devices don't drop packets.</li>
+</ul>
+</li>
+</ul>
+<p>All this happens without the backend knowing about the NLB; it thinks it's communicating directly with the client.</p>
+</li>
+<li>
+<p>State Management and Other &quot;Etc.&quot;</p>
+<ul>
+<li>Flow State Tracking: Hyperplane maintains distributed, transactional state for each flow (e.g., connection tuples). This is shared across nodes using protocols that  allow any node to handle packets for a flow, even if the original node fails. It tracks idle timeouts (e.g., 350s for TCP) and health.</li>
+<li>Health Checks and Failover: Hyperplane runs health checks from its nodes to targets, marking zones unhealthy if needed and updating DNS (via Route 53) for failover.</li>
+<li>Scalability and Resilience: It's fault-tolerant—nodes replicate state, and traffic is load-balanced across them. No single point of failure, and it auto-scales with demand</li>
+</ul>
+</li>
+</ol>
+<pre><code class="language-sql">Client (src=C1, dst=VIP)
+   |
+   v
+NLB Elastic Network Interface (ENI in AZ)
+   |
+   v
+[ Hyperplane Distributed Nodes ]
+   |   - Select backend via 5-tuple hash
+   |   - DNAT: VIP -&gt; Backend IP
+   |   - Preserve Client IP
+   |
+   v
+Backend Server (sees Client IP)
+
+Response Path:
+Backend Server (src=Backend, dst=C1)
+   |
+   v
+[ Hyperplane Nodes ] 
+   |   - SNAT: Backend -&gt; VIP
+   |   - Ensure symmetry + client trust
+   |
+   v
+Client (sees src=VIP, dest=C1 ✅)
+</code></pre>
+<h2>Conclusion</h2>
+<p>We've gone from &quot;What's a load balancer?&quot; to cracking the response-routing riddle. Whether you go with SNAT for ease, DSR for raw speed (but only in tight-knit networks), or Hyperplane for cloud elegance, the goal's the same: Keep those connections alive and kicking. Next time you're architecting a system, think about this early—it'll save you headaches down the line :).</p>
+
+    </div>
+</div>
+    </div>
+    <footer class="text-center py-4">
+        <p>&copy; 2025 Darshan N A. All rights reserved.</p>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/assets/js/scripts.js"></script>
+</body>
+</html>
